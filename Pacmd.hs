@@ -3,6 +3,7 @@ module Pacmd where
 import System.Process (readProcess)
 import Text.Parsec (many, notFollowedBy, sepBy, space, manyTill, anyChar, char, parse, many1, spaces, digit, string, Parsec, try, lookAhead, eof)
 
+import Data.Maybe (catMaybes)
 import Control.Applicative ((<|>), (<*>), (*>), (<*), pure)
 import Control.Monad (void)
 
@@ -12,7 +13,7 @@ data Sink = Sink {sinkindex :: Int, sinkname :: String} deriving (Show)
 
 data Input = Input {inputindex :: Int, inputname :: String, sink :: Int} deriving (Show)
 
-list_sinks = pacmd "list-sinks" >>= return . parse parse_sinks "sinks" 
+list_sinks = pacmd "list-sinks" >>= return . fmap catMaybes . parse parse_sinks "sinks"
 
 pacmd command = readProcess "pacmd" [command] ""
 
@@ -61,7 +62,7 @@ getInputData = consolidate . foldr func (Nothing, Nothing)
 	consolidate (Just x, Just y) = Just (x, y)
 	consolidate _ = Nothing
 
-list_inputs = pacmd "list-sink-inputs" >>= return . parse parse_inputs "inputs"
+list_inputs = pacmd "list-sink-inputs" >>= return . fmap catMaybes . parse parse_inputs "inputs"
 
 parse_inputs = garbage *> many parse_input
 
