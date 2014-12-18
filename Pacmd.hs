@@ -48,11 +48,13 @@ inputLine = try clientLine <|> try sinkLine <|> otherLine
 	sinkLine = fmap (InputSink . read) $ colonLine "sink:" $ many1 digit
 	otherLine = pure InputOther <* line
 
-getInputData = consolidate . foldr func (Nothing, Nothing)
+getInputData = consolidate . unFirst . foldMap (first . func)
 	where
-	func (Client name) (_, s) = (Just name, s)
-	func (InputSink num) (n, _) = (n, Just num)
-	func _ a = a
+	first (x, y) = (First x, First y)
+	unFirst (First x, First y) = (x, y)
+	func (Client name) = (Just name, Nothing)
+	func (InputSink num) = (Nothing, Just num)
+	func _ = (Nothing, Nothing)
 	consolidate (Just x, Just y) = Just (x, y)
 	consolidate _ = Nothing
 
