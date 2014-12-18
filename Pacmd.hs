@@ -23,7 +23,7 @@ parse_sinks = garbage >> many parse_sink
 
 line = manyTill anyChar endOfLine
 
-indexLine = many1 (space <|> char '*') *> string "index:" *> spaces *>
+indexLine = fmap read $ many1 (space <|> char '*') *> string "index:" *> spaces *>
 	many1 digit <* endOfLine
 
 colonLine key valueParser = spaces *> string key *> spaces *> valueParser <* manyTill anyChar endOfLine
@@ -44,7 +44,7 @@ getName = foldr func Nothing
 parse_sink = do
 	num <- indexLine
 	name <- fmap getName $ manyTill sinkLine endOfItem
-	return $ fmap (Sink (read num)) name
+	return $ fmap (Sink num) name
 
 data InputLine = Client String | InputSink Int | InputOther
 inputLine = try clientLine <|> try sinkLine <|> otherLine
@@ -68,4 +68,4 @@ parse_inputs = garbage *> many parse_input
 parse_input = do
 	num <- indexLine
 	stuff <- fmap getInputData $ manyTill inputLine endOfItem
-	return $ fmap (uncurry $ Input (read num)) stuff
+	return $ fmap (uncurry $ Input num) stuff
