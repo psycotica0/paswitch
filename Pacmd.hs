@@ -34,6 +34,8 @@ sinkLine = try nameLine <|> otherLine
 	nameLine = fmap Name $ colonLine "name:" $ char '<' *> manyTill anyChar (char '>')
 	otherLine = pure Other <* line
 
+endOfItem = (void garbage_line) <|> (void $ lookAhead $ try indexLine)
+
 getName = foldr func Nothing
 	where
 	func (Name name) = const $ Just name
@@ -41,8 +43,23 @@ getName = foldr func Nothing
 
 parse_sink = do
 	num <- indexLine
-	name <- fmap getName $ manyTill sinkLine $ (void garbage_line) <|> (void $ lookAhead $ try indexLine)
+	name <- fmap getName $ manyTill sinkLine endOfItem
 	return $ fmap (Sink (read num)) name
+
+data InputLine = Client String | InputSink Int | InputOther
+inputLine = try clientLine <|> try sinkLine <|> otherLine
+	where
+	clientLine = fmap Client $ colonLine "client:" $ many1 digit *> spaces *> char '<' *> manyTill anyChar (char '>')
+	sinkLine = fmap (InputSink . read) $ colonLine "sink:" $ many1 digit
+	otherLine = pure InputOther <* line
+
+getInputData = consolidate . foldr func (Nothing, Nothing)
+	where
+	func (Client name) (_, s) = (Just name, s)
+	func (InputSink num) (n, _) = (n, Just num)
+	func _ a = a
+	consolidate (Just x, Just y) = Just (x, y)
+	consolidate _ = Nothing
 
 list_inputs = pacmd "list-sink-inputs" >>= return . parse parse_inputs "inputs"
 
@@ -50,8 +67,5 @@ parse_inputs = garbage *> many parse_input
 
 parse_input = do
 	num <- indexLine
-	many $ try $ other_line
-	return $ Input (read num) "" 0
-
-	where
-	other_line = spaces *> notFollowedBy (string "index:") *> manyTill anyChar endOfLine
+	stuff <- fmap getInputData $ manyTill inputLine endOfItem
+	return $ fmap (uncurry $ Input (read num)) stuff
