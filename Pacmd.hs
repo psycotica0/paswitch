@@ -6,6 +6,8 @@ import Text.Parsec (many, notFollowedBy, sepBy, space, manyTill, anyChar, char, 
 import Data.Maybe (catMaybes)
 import Control.Applicative ((<|>), (<*>), (*>), (<*), pure)
 import Control.Monad (void)
+import Data.Foldable (foldMap)
+import Data.Monoid (First(..), getFirst)
 
 endOfLine = char '\n'
 garbage_line = notFollowedBy space >> manyTill anyChar (void eof <|> void endOfLine)
@@ -25,16 +27,12 @@ list_sinks = pacmd "list-sinks" >>= return . fmap catMaybes . parse parse_sinks 
 
 parse_sinks = garbage >> many parse_sink
 
-data SinkLine = Name String | Other
 sinkLine = try nameLine <|> otherLine
 	where
-	nameLine = fmap Name $ colonLine "name:" $ char '<' *> manyTill anyChar (char '>')
-	otherLine = pure Other <* line
+	nameLine = fmap Just $ colonLine "name:" $ char '<' *> manyTill anyChar (char '>')
+	otherLine = pure Nothing <* line
 
-getName = foldr func Nothing
-	where
-	func (Name name) = const $ Just name
-	func _ = id
+getName = getFirst . foldMap First
 
 parse_sink = do
 	num <- indexLine
