@@ -8,34 +8,28 @@ import Control.Applicative ((<|>), (<*>), (*>), (<*), pure)
 import Control.Monad (void)
 
 endOfLine = char '\n'
-
-data Sink = Sink {sinkindex :: Int, sinkname :: String} deriving (Show)
-
-data Input = Input {inputindex :: Int, inputname :: String, sink :: Int} deriving (Show)
-
-list_sinks = pacmd "list-sinks" >>= return . fmap catMaybes . parse parse_sinks "sinks"
-
-pacmd command = readProcess "pacmd" [command] ""
-
 garbage_line = notFollowedBy space >> manyTill anyChar (void eof <|> void endOfLine)
 garbage = many garbage_line
-
-parse_sinks = garbage >> many parse_sink
-
 line = manyTill anyChar endOfLine
+endOfItem = (void garbage_line) <|> (void $ lookAhead $ try indexLine)
 
+colonLine key valueParser = spaces *> string key *> spaces *> valueParser <* manyTill anyChar endOfLine
 indexLine = fmap read $ many1 (space <|> char '*') *> string "index:" *> spaces *>
 	many1 digit <* endOfLine
 
-colonLine key valueParser = spaces *> string key *> spaces *> valueParser <* manyTill anyChar endOfLine
+pacmd command = readProcess "pacmd" [command] ""
+
+data Sink = Sink {sinkindex :: Int, sinkname :: String} deriving (Show)
+
+list_sinks = pacmd "list-sinks" >>= return . fmap catMaybes . parse parse_sinks "sinks"
+
+parse_sinks = garbage >> many parse_sink
 
 data SinkLine = Name String | Other
 sinkLine = try nameLine <|> otherLine
 	where
 	nameLine = fmap Name $ colonLine "name:" $ char '<' *> manyTill anyChar (char '>')
 	otherLine = pure Other <* line
-
-endOfItem = (void garbage_line) <|> (void $ lookAhead $ try indexLine)
 
 getName = foldr func Nothing
 	where
@@ -46,6 +40,8 @@ parse_sink = do
 	num <- indexLine
 	name <- fmap getName $ manyTill sinkLine endOfItem
 	return $ fmap (Sink num) name
+
+data Input = Input {inputindex :: Int, inputname :: String, sink :: Int} deriving (Show)
 
 data InputLine = Client String | InputSink Int | InputOther
 inputLine = try clientLine <|> try sinkLine <|> otherLine
