@@ -1,9 +1,10 @@
 module Pacmd where
 
 import System.Process (readProcess)
-import Text.Parsec (many, notFollowedBy, sepBy, space, manyTill, anyChar, char, parse, many1, spaces, digit, string, Parsec, try)
+import Text.Parsec (many, notFollowedBy, sepBy, space, manyTill, anyChar, char, parse, many1, spaces, digit, string, Parsec, try, lookAhead, eof)
 
-import Control.Applicative ((<|>), (<*>), (*>), (<*))
+import Control.Applicative ((<|>), (<*>), (*>), (<*), pure)
+import Control.Monad (void)
 
 endOfLine = char '\n'
 
@@ -15,9 +16,8 @@ list_sinks = pacmd "list-sinks" >>= return . parse parse_sinks "sinks"
 
 pacmd command = readProcess "pacmd" [command] ""
 
+garbage_line = notFollowedBy space >> manyTill anyChar (void eof <|> void endOfLine)
 garbage = many garbage_line
-	where
-	garbage_line = notFollowedBy space >> manyTill anyChar endOfLine
 
 parse_sinks = garbage >> many parse_sink
 
@@ -26,16 +26,23 @@ line = manyTill anyChar endOfLine
 indexLine = many1 (space <|> char '*') *> string "index:" *> spaces *>
 	many1 digit <* endOfLine
 
+colonLine key valueParser = spaces *> string key *> spaces *> valueParser <* manyTill anyChar endOfLine
+
+data SinkLine = Name String | Other
+sinkLine = try nameLine <|> otherLine
+	where
+	nameLine = fmap Name $ colonLine "name:" $ char '<' *> manyTill anyChar (char '>')
+	otherLine = pure Other <* line
+
+getName = foldr func Nothing
+	where
+	func (Name name) = const $ Just name
+	func _ = id
+
 parse_sink = do
 	num <- indexLine
-	many $ try $ other_line
-	name <- name_line
-	many $ try $ other_line
-	return $ Sink (read num) name
-
-	where
-	name_line = spaces *> string "name:" *> spaces *> char '<' *> manyTill anyChar (char '>') <* manyTill anyChar endOfLine
-	other_line = spaces *> notFollowedBy (string "index:" <|> string "name:") *> manyTill anyChar endOfLine
+	name <- fmap getName $ manyTill sinkLine $ (void garbage_line) <|> (void $ lookAhead $ try indexLine)
+	return $ fmap (Sink (read num)) name
 
 list_inputs = pacmd "list-sink-inputs" >>= return . parse parse_inputs "inputs"
 
