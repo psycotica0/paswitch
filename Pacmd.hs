@@ -21,12 +21,13 @@ garbage = many garbage_line
 
 parse_sinks = garbage >> many parse_sink
 
+line = manyTill anyChar endOfLine
+
+indexLine = many1 (space <|> char '*') *> string "index:" *> spaces *>
+	many1 digit <* endOfLine
+
 parse_sink = do
-	many1 (space <|> char '*')
-	string "index:"
-	spaces
-	num <- many1 digit
-	endOfLine
+	num <- indexLine
 	many $ try $ other_line
 	name <- name_line
 	many $ try $ other_line
@@ -41,11 +42,7 @@ list_inputs = pacmd "list-sink-inputs" >>= return . parse parse_inputs "inputs"
 parse_inputs = garbage *> many parse_input
 
 parse_input = do
-	spaces
-	string "index:"
-	spaces
-	num <- many1 digit
-	endOfLine
+	num <- indexLine
 	many $ try $ other_line
 	return $ Input (read num) "" 0
 
