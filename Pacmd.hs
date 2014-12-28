@@ -2,7 +2,6 @@ module Pacmd where
 
 import System.Process (readProcess)
 import Text.Parsec (many, notFollowedBy, sepBy, space, manyTill, anyChar, char, parse, many1, spaces, digit, string, Parsec, try, lookAhead, eof)
-import Text.Parsec.Perm (permute, (<||>), (<$?>), (<|?>))
 
 import Data.Maybe (catMaybes)
 import Control.Applicative ((<|>), (<*>), (*>), (<*), pure)
@@ -42,13 +41,19 @@ parse_sink = do
 
 data Input = Input {inputindex :: Int, inputname :: String, sink :: Int} deriving (Show)
 
-permInputs = permute $ stuff <$?> otherLines <||> try clientLine <|?> otherLines <||> try sinkLine <|?> otherLines
+inputLine = try clientLine <|> try sinkLine <|> (fmap e line)
 	where
-	clientLine = colonLine "client:" $ many1 digit *> spaces *> char '<' *> manyTill anyChar (char '>')
-	sinkLine = fmap (read) $ colonLine "sink:" $ many1 digit
-	otherLine = try $ notFollowedBy (try (void clientLine) <|> try (void sinkLine) <|> try (void indexLine)) *> line
-	otherLines = (Nothing, fmap Just $ many1 otherLine)
-	stuff _ c _ s _ = Just (c, s)
+	c v = (Just v, Nothing)
+	s v = (Nothing, Just v)
+	e = const (Nothing, Nothing)
+	clientLine = fmap c $ colonLine "client:" $ many1 digit *> spaces *> char '<' *> manyTill anyChar (char '>')
+	sinkLine = fmap s $ fmap (read) $ colonLine "sink:" $ many1 digit
+
+first2 (a, b) = (First a, First b)
+getFirst2 (First (Just a), First (Just b)) = Just (a, b)
+getFirst2 _ = Nothing
+
+getInput = getFirst2 . foldMap first2
 
 list_inputs = pacmd "list-sink-inputs" >>= return . fmap catMaybes . parse parse_inputs "inputs"
 
@@ -56,5 +61,5 @@ parse_inputs = garbage *> many parse_input
 
 parse_input = do
 	num <- indexLine
-	stuff <- permInputs
+	stuff <- fmap getInput $ manyTill inputLine endOfItem
 	return $ fmap (uncurry $ Input num) stuff
