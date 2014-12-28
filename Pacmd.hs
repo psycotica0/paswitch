@@ -42,12 +42,12 @@ parse_sink = do
 
 data Input = Input {inputindex :: Int, inputname :: String, sink :: Int} deriving (Show)
 
-permInputs = permute $ stuff <$?> (Nothing, otherLines) <||> try clientLine <|?> (Nothing, otherLines) <||> try sinkLine <|?> (Nothing, otherLines)
+permInputs = permute $ stuff <$?> otherLines <||> try clientLine <|?> otherLines <||> try sinkLine <|?> otherLines
 	where
 	clientLine = colonLine "client:" $ many1 digit *> spaces *> char '<' *> manyTill anyChar (char '>')
 	sinkLine = fmap (read) $ colonLine "sink:" $ many1 digit
-	otherLine = try $ many1 space *> notFollowedBy (string "client" <|> string "index" <|> string "sink") *> line
-	otherLines = fmap Just $ many1 otherLine
+	otherLine = try $ notFollowedBy (try (void clientLine) <|> try (void sinkLine) <|> try (void indexLine)) *> line
+	otherLines = (Nothing, fmap Just $ many1 otherLine)
 	stuff _ c _ s _ = Just (c, s)
 
 list_inputs = pacmd "list-sink-inputs" >>= return . fmap catMaybes . parse parse_inputs "inputs"
