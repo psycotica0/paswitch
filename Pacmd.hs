@@ -1,4 +1,7 @@
-module Pacmd where
+module Pacmd (
+	Sink(..), Input(..),
+	list_sinks, list_inputs
+) where
 
 import System.Process (readProcess)
 import Text.Parsec (many, notFollowedBy, sepBy, space, manyTill, anyChar, char, parse, many1, spaces, digit, string, Parsec, try, lookAhead, eof)
