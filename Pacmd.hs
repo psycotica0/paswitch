@@ -42,13 +42,6 @@ parse_sink = do
 
 data Input = Input {inputindex :: Int, inputname :: String, sink :: Int} deriving (Show)
 
-data InputLine = Client String | InputSink Int | InputOther
-inputLine = try clientLine <|> try sinkLine <|> otherLine
-	where
-	clientLine = fmap Client $ colonLine "client:" $ many1 digit *> spaces *> char '<' *> manyTill anyChar (char '>')
-	sinkLine = fmap (InputSink . read) $ colonLine "sink:" $ many1 digit
-	otherLine = pure InputOther <* line
-
 permInputs = permute $ stuff <$?> (Nothing, otherLines) <||> try clientLine <|?> (Nothing, otherLines) <||> try sinkLine <|?> (Nothing, otherLines)
 	where
 	clientLine = colonLine "client:" $ many1 digit *> spaces *> char '<' *> manyTill anyChar (char '>')
