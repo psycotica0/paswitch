@@ -18,20 +18,22 @@ endOfLine = char '\n'
 garbage_line = notFollowedBy space >> manyTill anyChar (void eof <|> void endOfLine)
 garbage = many garbage_line
 line = manyTill anyChar endOfLine
-endOfItem = (void garbage_line) <|> (void $ lookAhead $ try indexLine)
+endOfItem = void garbage_line <|> void (lookAhead $ try indexLine)
 
 colonLine key valueParser = spaces *> string key *> spaces *> valueParser <* manyTill anyChar endOfLine
 
 indexLine = (,) <$> spacesDefault <*> num
 	where
-	spacesDefault = fmap (any (== '*')) $ many1 $ space <|> char '*'
+	spacesDefault = fmap (elem '*') $ many1 $ space <|> char '*'
 	num = fmap read $ string "index:" *> spaces *> many1 digit <* endOfLine
 
 pacmd command = readProcess "pacmd" [command] ""
 
 data Sink = Sink {sinkindex :: Int, sinkdefault :: Bool, sinkname :: String} deriving (Show)
 
-list_sinks = pacmd "list-sinks" >>= return . fmap catMaybes . parse parse_sinks "sinks"
+list_sinks =  parseCorrect <$> pacmd "list-sinks"
+	where
+	parseCorrect = fmap catMaybes . parse parse_sinks "sinks"
 
 parse_sinks = garbage >> many parse_sink
 
@@ -44,20 +46,20 @@ getName = getFirst . foldMap First
 
 parse_sink = do
 	(def, num) <- indexLine
-	name <- fmap getName $ manyTill sinkLine endOfItem
+	name <- getName <$> manyTill sinkLine endOfItem
 	return $ fmap (Sink num def) name
 
 set_default_sink (Sink {sinkindex = v}) = pacmd $ "set-default-sink " ++ show v
 
 data Input = Input {inputindex :: Int, inputname :: String, sink :: Int} deriving (Show)
 
-inputLine = try clientLine <|> try sinkLine <|> (fmap e line)
+inputLine = try clientLine <|> try sinkLine <|> fmap e line
 	where
 	c v = (Just v, Nothing)
 	s v = (Nothing, Just v)
 	e = const (Nothing, Nothing)
 	clientLine = fmap c $ colonLine "client:" $ many1 digit *> spaces *> char '<' *> manyTill anyChar (char '>')
-	sinkLine = fmap s $ fmap (read) $ colonLine "sink:" $ many1 digit
+	sinkLine = fmap (s . read) $ colonLine "sink:" $ many1 digit
 
 first2 (a, b) = (First a, First b)
 getFirst2 (First (Just a), First (Just b)) = Just (a, b)
@@ -65,13 +67,15 @@ getFirst2 _ = Nothing
 
 getInput = getFirst2 . foldMap first2
 
-list_inputs = pacmd "list-sink-inputs" >>= return . fmap catMaybes . parse parse_inputs "inputs"
+list_inputs = parseCorrect <$> pacmd "list-sink-inputs"
+	where
+	parseCorrect = fmap catMaybes . parse parse_inputs "inputs"
 
 parse_inputs = garbage *> many parse_input
 
 parse_input = do
 	num <- fmap snd indexLine
-	stuff <- fmap getInput $ manyTill inputLine endOfItem
+	stuff <- getInput <$> manyTill inputLine endOfItem
 	return $ fmap (uncurry $ Input num) stuff
 
 move_input (Input {inputindex = ii}) (Sink {sinkindex = si}) = pacmd $ "move-sink-input " ++ show ii ++ " " ++ show si
