@@ -7,7 +7,7 @@ import System.Process (readProcess)
 import Text.Parsec (many, notFollowedBy, sepBy, space, manyTill, anyChar, char, parse, many1, spaces, digit, string, Parsec, try, lookAhead, eof)
 
 import Data.Maybe (catMaybes)
-import Control.Applicative ((<|>), (<*>), (*>), (<*), pure)
+import Control.Applicative ((<$>), (<|>), (<*>), (*>), (<*), pure)
 import Control.Monad (void)
 import Data.Foldable (foldMap)
 import Data.Monoid (First(..), getFirst)
@@ -19,12 +19,15 @@ line = manyTill anyChar endOfLine
 endOfItem = (void garbage_line) <|> (void $ lookAhead $ try indexLine)
 
 colonLine key valueParser = spaces *> string key *> spaces *> valueParser <* manyTill anyChar endOfLine
-indexLine = fmap read $ many1 (space <|> char '*') *> string "index:" *> spaces *>
-	many1 digit <* endOfLine
+
+indexLine = (,) <$> spacesDefault <*> num
+	where
+	spacesDefault = fmap (any (== '*')) $ many1 $ space <|> char '*'
+	num = fmap read $ string "index:" *> spaces *> many1 digit <* endOfLine
 
 pacmd command = readProcess "pacmd" [command] ""
 
-data Sink = Sink {sinkindex :: Int, sinkname :: String} deriving (Show)
+data Sink = Sink {sinkindex :: Int, sinkdefault :: Bool, sinkname :: String} deriving (Show)
 
 list_sinks = pacmd "list-sinks" >>= return . fmap catMaybes . parse parse_sinks "sinks"
 
@@ -38,9 +41,9 @@ sinkLine = try nameLine <|> otherLine
 getName = getFirst . foldMap First
 
 parse_sink = do
-	num <- indexLine
+	(def, num) <- indexLine
 	name <- fmap getName $ manyTill sinkLine endOfItem
-	return $ fmap (Sink num) name
+	return $ fmap (Sink num def) name
 
 data Input = Input {inputindex :: Int, inputname :: String, sink :: Int} deriving (Show)
 
@@ -63,6 +66,6 @@ list_inputs = pacmd "list-sink-inputs" >>= return . fmap catMaybes . parse parse
 parse_inputs = garbage *> many parse_input
 
 parse_input = do
-	num <- indexLine
+	num <- fmap snd indexLine
 	stuff <- fmap getInput $ manyTill inputLine endOfItem
 	return $ fmap (uncurry $ Input num) stuff
