@@ -1,3 +1,5 @@
+module Main(main) where
+
 import Pacmd
 import Control.Monad.Trans.Error (ErrorT(..), runErrorT, Error, strMsg)
 import Text.Parsec.Pos (initialPos)
