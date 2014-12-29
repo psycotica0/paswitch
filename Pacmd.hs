@@ -1,6 +1,7 @@
 module Pacmd (
 	Sink(..), Input(..),
-	list_sinks, list_inputs
+	list_sinks, list_inputs,
+	set_default_sink
 ) where
 
 import System.Process (readProcess)
@@ -44,6 +45,8 @@ parse_sink = do
 	(def, num) <- indexLine
 	name <- fmap getName $ manyTill sinkLine endOfItem
 	return $ fmap (Sink num def) name
+
+set_default_sink (Sink {sinkindex = v}) = pacmd $ "set-default-sink " ++ show v
 
 data Input = Input {inputindex :: Int, inputname :: String, sink :: Int} deriving (Show)
 
