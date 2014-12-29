@@ -1,0 +1,4 @@
+This is a sorta stupid thing, but it helps me.
+
+If you run paswitch, it will switch the default to the next sink, and move everything to it.
+The parser is overkill for the requirements, but it was good fun.
