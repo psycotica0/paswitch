@@ -1,7 +1,8 @@
 module Pacmd (
 	Sink(..), Input(..),
 	list_sinks, list_inputs,
-	set_default_sink
+	set_default_sink,
+	move_input,
 ) where
 
 import System.Process (readProcess)
@@ -72,3 +73,5 @@ parse_input = do
 	num <- fmap snd indexLine
 	stuff <- fmap getInput $ manyTill inputLine endOfItem
 	return $ fmap (uncurry $ Input num) stuff
+
+move_input (Input {inputindex = ii}) (Sink {sinkindex = si}) = pacmd $ "move-sink-input " ++ show ii ++ " " ++ show si
